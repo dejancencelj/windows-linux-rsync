@@ -19,14 +19,39 @@ class SettingsDialog:
 
         # Profile Selection Frame
         profile_frame = tk.Frame(root)
-        profile_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=10, pady=10)
+        profile_frame.grid(row=1, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
+        
+        # Status Dashboard
+        status_frame = tk.LabelFrame(root, text="System Status")
+        status_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
+        
+        self.ssh_canvas = tk.Canvas(status_frame, width=20, height=20, highlightthickness=0)
+        self.ssh_canvas.pack(side='left', padx=5)
+        self.ssh_circle = self.ssh_canvas.create_oval(2, 2, 18, 18, fill="red")
+        tk.Label(status_frame, text="SSH Connection").pack(side='left')
+        
+        tk.Label(status_frame, text="   |   ").pack(side='left')
+
+        self.mon_canvas = tk.Canvas(status_frame, width=20, height=20, highlightthickness=0)
+        self.mon_canvas.pack(side='left', padx=5)
+        self.mon_circle = self.mon_canvas.create_oval(2, 2, 18, 18, fill="red")
+        self.mon_circle = self.mon_canvas.create_oval(2, 2, 18, 18, fill="red")
+        tk.Label(status_frame, text="Folder Monitor").pack(side='left')
+        
+        tk.Label(status_frame, text="   |   ").pack(side='left')
+        self.pause_btn = tk.Button(status_frame, text="Pause Sync", command=self.toggle_pause, bg="#FFDDDD")
+        self.pause_btn.pack(side='left', padx=10)
+        
+        self.is_paused = False
         
         tk.Label(profile_frame, text="Active Profile:").pack(side='left')
+        
         
         self.profile_var = tk.StringVar()
         self.profile_combo = ttk.Combobox(profile_frame, textvariable=self.profile_var, state="readonly")
         self.profile_combo.pack(side='left', padx=5, fill='x', expand=True)
         self.profile_combo.bind("<<ComboboxSelected>>", self.on_profile_change)
+        
         
         tk.Button(profile_frame, text="+ New", command=self.add_profile).pack(side='left', padx=2)
         tk.Button(profile_frame, text="- Del", command=self.delete_profile).pack(side='left', padx=2)
@@ -80,6 +105,46 @@ class SettingsDialog:
         if 0 <= self.active_index < len(self.profiles):
             self.profile_combo.current(self.active_index)
             self.on_profile_change(None)
+
+        # Start polling status
+        self.poll_status()
+
+    def toggle_pause(self):
+        import json
+        cmd = "resume" if self.is_paused else "pause"
+        try:
+            with open("control.json", "w") as f:
+                json.dump({"command": cmd}, f)
+        except Exception:
+            pass
+
+    def poll_status(self):
+        import json
+        import os
+        try:
+            if os.path.exists("status.json"):
+                with open("status.json", "r") as f:
+                    status = json.load(f)
+                    
+                # Update UI
+                ssh_color = "green" if status.get("connected") else "red"
+                mon_color = "green" if status.get("monitoring") else "red"
+                
+                self.ssh_canvas.itemconfig(self.ssh_circle, fill=ssh_color)
+                self.mon_canvas.itemconfig(self.mon_circle, fill=mon_color)
+                
+                # Update Pause Button
+                paused = status.get("paused", False)
+                self.is_paused = paused
+                if paused:
+                    self.pause_btn.config(text="Resume Sync", bg="#DDFFDD")
+                else:
+                    self.pause_btn.config(text="Pause Sync", bg="#FFDDDD")
+                    
+        except Exception:
+            pass
+            
+        self.root.after(500, self.poll_status)
 
     def refresh_profile_list(self):
         names = [p.get("name", "Unnamed") for p in self.profiles]

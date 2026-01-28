@@ -8,9 +8,10 @@ class SyncHandler(FileSystemEventHandler):
         self.uploader = uploader
         self.local_base_path = local_base_path
         self.blacklist = blacklist if blacklist else []
+        self.paused = False
 
     def process_event(self, event):
-        if event.is_directory:
+        if self.paused or event.is_directory:
             return
 
         # Calculate relative path
@@ -34,10 +35,6 @@ class SyncHandler(FileSystemEventHandler):
         
     def on_moved(self, event):
         if not event.is_directory:
-             # Logic for moved files: Treat as new file creation at dest for simplicity first
-             # Ideally we would delete source and upload dest, but syncing deletes is risky if not careful.
-             # User asked for "sync", implying mirroring. 
-             # For now, let's just upload the new location.
              relative_path = os.path.relpath(event.dest_path, self.local_base_path)
              print(f"File moved to: {relative_path}")
              self.uploader.upload_file(event.dest_path, relative_path)
@@ -48,6 +45,10 @@ class Monitor:
         self.uploader = uploader
         self.observer = Observer()
         self.handler = SyncHandler(uploader, local_path, blacklist)
+
+    def set_paused(self, paused):
+        self.handler.paused = paused
+        print(f"Monitor paused: {paused}")
 
     def start(self):
         self.observer.schedule(self.handler, self.local_path, recursive=True)

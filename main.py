@@ -9,6 +9,21 @@ import config
 import monitor
 import uploader
 import gui_settings
+import json
+
+def update_status_file(connected=False, monitoring=False, error=None, paused=False):
+    status = {
+        "connected": connected,
+        "monitoring": monitoring,
+        "paused": paused,
+        "error": error,
+        "pid": os.getpid()
+    }
+    try:
+        with open("status.json", "w") as f:
+            json.dump(status, f)
+    except Exception:
+        pass
 
 class App:
     def __init__(self):
@@ -16,6 +31,40 @@ class App:
         self.uploader = None
         self.icon = None
         self.config_data = config.load_config()
+        self.is_paused = False
+        self.connected = False
+        # Init status as disconnected
+        self.update_status()
+        
+        # Start command listener
+        threading.Thread(target=self.command_loop, daemon=True).start()
+
+    def update_status(self, error=None):
+        monitoring = (self.monitor is not None)
+        update_status_file(self.connected, monitoring, error, self.is_paused)
+
+    def command_loop(self):
+        import time
+        while True:
+            try:
+                if os.path.exists("control.json"):
+                    with open("control.json", "r") as f:
+                        cmd = json.load(f)
+                    os.remove("control.json") # Consume command
+                    
+                    if cmd.get("command") == "pause":
+                        self.is_paused = True
+                        if self.monitor: self.monitor.set_paused(True)
+                        print("Paused via command.")
+                    elif cmd.get("command") == "resume":
+                        self.is_paused = False
+                        if self.monitor: self.monitor.set_paused(False)
+                        print("Resumed via command.")
+                    
+                    self.update_status()
+            except Exception:
+                pass
+            time.sleep(0.5)
 
     def create_image(self):
         # Generate an image for the icon
@@ -47,10 +96,17 @@ class App:
         if not self.upl.connect():
             print("Could not connect on startup")
             self.icon.notify("Connection Failed. Check Pageant/Settings.", "WinLinuxSync Error")
+            self.update_status("Connection Failed")
             return
             
         self.monitor = monitor.Monitor(cfg["local_path"], self.upl, cfg.get("blacklist", []))
         self.monitor.start()
+        
+        if self.is_paused:
+            self.monitor.set_paused(True)
+
+        self.connected = True
+        self.update_status()
         self.icon.notify(f"Connected to {cfg['server_host']}\nMonitoring {cfg['local_path']}", "WinLinuxSync Started")
 
     def stop_sync(self, item=None):
@@ -61,6 +117,12 @@ class App:
         if self.upl:
             self.upl.close()
             self.upl = None
+        if self.upl:
+            self.upl.close()
+            self.upl = None
+            
+        self.connected = False
+        self.update_status("Stopped")
 
     def on_config_saved(self, new_config):
         # This might not be called if running as subprocess, but keeping it logic-wise
