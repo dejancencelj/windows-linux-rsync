@@ -1,0 +1,16 @@
+{
+    "profiles": [
+        {
+            "name": "Default Profile",
+            "local_path": "C:/AI_PROJECTS/monocms-modules-moderator",
+            "remote_path": "/var/www/newsadmin/newsadmin/public_html/modules/moderator",
+            "server_host": "dev3.mmc.lan",
+            "server_port": 22,
+            "username": "root",
+            "blacklist": [
+                "vendor"
+            ]
+        }
+    ],
+    "active_index": 0
+}
