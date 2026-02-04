@@ -1,21 +1,16 @@
-import pystray
-from PIL import Image, ImageDraw
 import threading
 import sys
 import os
-import tkinter as tk
+import json
 
 import config
 import monitor
 import uploader
-import gui_settings
-import json
 
-def update_status_file(connected=False, monitoring=False, error=None, paused=False):
+def update_status_file(connected=False, monitoring=False, error=None):
     status = {
         "connected": connected,
         "monitoring": monitoring,
-        "paused": paused,
         "error": error,
         "pid": os.getpid()
     }
@@ -28,55 +23,47 @@ def update_status_file(connected=False, monitoring=False, error=None, paused=Fal
 class App:
     def __init__(self):
         self.monitor = None
-        self.uploader = None
-        self.icon = None
+        self.upl = None
         self.config_data = config.load_config()
-        self.is_paused = False
         self.connected = False
+        self.running = True
         # Init status as disconnected
         self.update_status()
         
+        # Redirect logs to file for GUI
+        self.logfile = open("sync.log", "a", buffering=1)
+        sys.stdout = self.logfile
+        sys.stderr = self.logfile
+
         # Start command listener
         threading.Thread(target=self.command_loop, daemon=True).start()
 
     def update_status(self, error=None):
         monitoring = (self.monitor is not None)
-        update_status_file(self.connected, monitoring, error, self.is_paused)
+        update_status_file(self.connected, monitoring, error)
 
     def command_loop(self):
         import time
-        while True:
+        while self.running:
             try:
                 if os.path.exists("control.json"):
                     with open("control.json", "r") as f:
                         cmd = json.load(f)
                     os.remove("control.json") # Consume command
                     
-                    if cmd.get("command") == "pause":
-                        self.is_paused = True
-                        if self.monitor: self.monitor.set_paused(True)
-                        print("Paused via command.")
-                    elif cmd.get("command") == "resume":
-                        self.is_paused = False
-                        if self.monitor: self.monitor.set_paused(False)
-                        print("Resumed via command.")
+                    if cmd.get("command") == "reconnect":
+                        print("Reconnect triggered via command.")
+                        self.start_sync()
+                    elif cmd.get("command") == "stop":
+                        print("Stop triggered via command.")
+                        self.stop_sync()
                     
                     self.update_status()
             except Exception:
                 pass
             time.sleep(0.5)
 
-    def create_image(self):
-        # Generate an image for the icon
-        width = 64
-        height = 64
-        image = Image.new('RGB', (width, height), (255, 255, 255))
-        dc = ImageDraw.Draw(image)
-        dc.rectangle((width // 2, 0, width, height // 2), fill=(0, 0, 255))
-        dc.rectangle((0, height // 2, width // 2, height), fill=(0, 255, 0))
-        return image
-
-    def start_sync(self, item=None):
+    def start_sync(self):
         if self.monitor:
             self.stop_sync()
         
@@ -85,8 +72,8 @@ class App:
         cfg = config.get_active_profile(self.config_data)
         
         if not cfg or not cfg.get("local_path") or not cfg.get("server_host"):
-            print("Config missing or invalid active profile, getting settings...")
-            self.open_settings()
+            print("Config missing or invalid active profile.")
+            self.update_status("Config missing")
             return
 
         print(f"Starting sync service for profile: {cfg.get('name')}...")
@@ -95,21 +82,17 @@ class App:
         # Test connection first
         if not self.upl.connect():
             print("Could not connect on startup")
-            self.icon.notify("Connection Failed. Check Pageant/Settings.", "WinLinuxSync Error")
             self.update_status("Connection Failed")
             return
             
         self.monitor = monitor.Monitor(cfg["local_path"], self.upl, cfg.get("blacklist", []))
         self.monitor.start()
-        
-        if self.is_paused:
-            self.monitor.set_paused(True)
 
         self.connected = True
         self.update_status()
-        self.icon.notify(f"Connected to {cfg['server_host']}\nMonitoring {cfg['local_path']}", "WinLinuxSync Started")
+        print(f"Connected to {cfg['server_host']}, monitoring {cfg['local_path']}")
 
-    def stop_sync(self, item=None):
+    def stop_sync(self):
         if self.monitor:
             print("Stopping sync service...")
             self.monitor.stop()
@@ -117,67 +100,46 @@ class App:
         if self.upl:
             self.upl.close()
             self.upl = None
-        if self.upl:
-            self.upl.close()
-            self.upl = None
             
         self.connected = False
         self.update_status("Stopped")
 
-    def on_config_saved(self, new_config):
-        # This might not be called if running as subprocess, but keeping it logic-wise
-        self.config_data = new_config
-        self.start_sync()
-
-    def open_settings(self, item=None):
-        # Run settings in a separate process to avoid Tkinter/Thread freezes
-        import subprocess
-        print("Opening settings...")
-        proc = subprocess.Popen([sys.executable, 'gui_settings.py'])
-        
-        # Start a thread to wait for it to close, then restart sync
-        def wait_and_restart():
-            proc.wait()
-            print("Settings closed.")
-            
-            # Only restart sync if config is now valid
-            current_config = config.load_config()
-            active_p = config.get_active_profile(current_config)
-            if active_p and active_p.get("local_path") and active_p.get("server_host"):
-                print("Config valid, restarting sync...")
-                self.start_sync()
-            else:
-                print("Config still missing or invalid. Sync not started.")
-            
-        threading.Thread(target=wait_and_restart, daemon=True).start()
-
-    def exit_action(self, icon, item):
+    def shutdown(self):
+        self.running = False
         self.stop_sync()
-        icon.stop()
+        print("Application shutdown.")
 
     def main(self):
-        image = self.create_image()
-        menu = pystray.Menu(
-            pystray.MenuItem('Start Sync', self.start_sync),
-            pystray.MenuItem('Stop Sync', self.stop_sync),
-            pystray.MenuItem('Settings', self.open_settings),
-            pystray.MenuItem('Exit', self.exit_action)
-        )
-        self.icon = pystray.Icon("name", image, "WinLinuxSync", menu)
+        import gui_settings
         
-        # Auto-start if configured
+        # Auto-start sync if configured
         active_p = config.get_active_profile(self.config_data)
         if active_p and active_p.get("server_host"):
-             # We want to start sync, but pystray blocks on run().
-             # Schedule start after a brief delay or just call it? 
-             # calling it directly is fine as long as monitor runs in thread (which it does).
-             self.start_sync()
+            self.start_sync()
 
-        # Always open settings on startup as requested
-        self.open_settings()
-             
-        self.icon.run()
+        # Run settings as the main window (blocking)
+        gui_settings.open_settings(on_save_callback=lambda cfg: self.start_sync())
+        
+        # When settings window is closed, shutdown
+        self.shutdown()
 
 if __name__ == "__main__":
+    import msvcrt
+    import tkinter as tk
+    
+    LOCK_FILE = "winlinuxsync.lock"
+    
+    # Try to acquire exclusive lock
+    try:
+        lock_handle = open(LOCK_FILE, "w")
+        msvcrt.locking(lock_handle.fileno(), msvcrt.LK_NBLCK, 1)
+    except (IOError, OSError):
+        # Another instance is running
+        import tkinter.messagebox
+        root = tk.Tk()
+        root.withdraw()
+        tkinter.messagebox.showwarning("WinLinuxSync", "Another instance is already running.")
+        sys.exit(1)
+    
     app = App()
     app.main()

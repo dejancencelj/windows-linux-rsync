@@ -1,12 +1,12 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk, scrolledtext
 import config
 
 class SettingsDialog:
     def __init__(self, root, on_save_callback):
         self.root = root
         self.root.title("Settings - WinLinuxSync")
-        self.root.geometry("500x450")
+        self.root.geometry("600x650") # Increased size
         self.on_save_callback = on_save_callback
         
         # Style
@@ -35,14 +35,11 @@ class SettingsDialog:
         self.mon_canvas = tk.Canvas(status_frame, width=20, height=20, highlightthickness=0)
         self.mon_canvas.pack(side='left', padx=5)
         self.mon_circle = self.mon_canvas.create_oval(2, 2, 18, 18, fill="red")
-        self.mon_circle = self.mon_canvas.create_oval(2, 2, 18, 18, fill="red")
         tk.Label(status_frame, text="Folder Monitor").pack(side='left')
         
         tk.Label(status_frame, text="   |   ").pack(side='left')
-        self.pause_btn = tk.Button(status_frame, text="Pause Sync", command=self.toggle_pause, bg="#FFDDDD")
-        self.pause_btn.pack(side='left', padx=10)
-        
-        self.is_paused = False
+        tk.Button(status_frame, text="Connect", command=self.manual_connect, bg="#DDFFDD").pack(side='left', padx=5)
+        tk.Button(status_frame, text="Disconnect", command=self.manual_disconnect, bg="#FFCCCC").pack(side='left', padx=5)
         
         tk.Label(profile_frame, text="Active Profile:").pack(side='left')
         
@@ -89,7 +86,16 @@ class SettingsDialog:
         self.blacklist_var = tk.StringVar()
         tk.Entry(details_frame, textvariable=self.blacklist_var, width=40).grid(row=6, column=1, padx=5, pady=5)
 
-        tk.Button(root, text="Save & Restart", command=self.save, bg="#DDDDDD", height=2).grid(row=2, column=1, pady=10)
+        # Log Frame
+        log_frame = tk.LabelFrame(root, text="Activity Log")
+        log_frame.grid(row=2, column=0, columnspan=3, sticky='nsew', padx=10, pady=5)
+        root.grid_rowconfigure(2, weight=1)
+        root.grid_columnconfigure(1, weight=1)
+
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, state='disabled', font=('Consolas', 9))
+        self.log_text.pack(fill='both', expand=True, padx=5, pady=5)
+
+        tk.Button(root, text="Save & Close", command=self.save, bg="#DDDDDD", height=1).grid(row=3, column=1, pady=5)
         
         # Footer
         footer_frame = tk.Frame(root)
@@ -106,15 +112,23 @@ class SettingsDialog:
             self.profile_combo.current(self.active_index)
             self.on_profile_change(None)
 
-        # Start polling status
+        # Start polling status and logs separately
         self.poll_status()
+        self.update_logs()
 
-    def toggle_pause(self):
+    def manual_connect(self):
         import json
-        cmd = "resume" if self.is_paused else "pause"
         try:
             with open("control.json", "w") as f:
-                json.dump({"command": cmd}, f)
+                json.dump({"command": "reconnect"}, f)
+        except Exception:
+            pass
+
+    def manual_disconnect(self):
+        import json
+        try:
+            with open("control.json", "w") as f:
+                json.dump({"command": "stop"}, f)
         except Exception:
             pass
 
@@ -132,19 +146,37 @@ class SettingsDialog:
                 
                 self.ssh_canvas.itemconfig(self.ssh_circle, fill=ssh_color)
                 self.mon_canvas.itemconfig(self.mon_circle, fill=mon_color)
-                
-                # Update Pause Button
-                paused = status.get("paused", False)
-                self.is_paused = paused
-                if paused:
-                    self.pause_btn.config(text="Resume Sync", bg="#DDFFDD")
-                else:
-                    self.pause_btn.config(text="Pause Sync", bg="#FFDDDD")
                     
         except Exception:
             pass
             
-        self.root.after(500, self.poll_status)
+        self.root.after(2000, self.poll_status)  # Slower polling for responsiveness
+
+    def update_logs(self):
+        import os
+        try:
+            if os.path.exists("sync.log"):
+                with open("sync.log", "r", encoding="utf-8", errors="ignore") as f:
+                    # Only read last 10KB to prevent freezing on large logs
+                    f.seek(0, 2)  # Seek to end
+                    size = f.tell()
+                    max_bytes = 10000
+                    if size > max_bytes:
+                        f.seek(size - max_bytes)
+                        f.readline()  # Skip partial line
+                    else:
+                        f.seek(0)
+                    content = f.read()
+                    
+                    self.log_text.config(state='normal')
+                    self.log_text.delete(1.0, tk.END)
+                    self.log_text.insert(tk.END, content)
+                    self.log_text.see(tk.END)
+                    self.log_text.config(state='disabled')
+        except Exception:
+            pass
+        self.root.after(2000, self.update_logs)  # Slower polling to reduce CPU
+        
 
     def refresh_profile_list(self):
         names = [p.get("name", "Unnamed") for p in self.profiles]
