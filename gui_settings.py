@@ -43,19 +43,18 @@ class SettingsDialog:
         
         tk.Label(profile_frame, text="Active Profile:").pack(side='left')
         
-        
         self.profile_var = tk.StringVar()
         self.profile_combo = ttk.Combobox(profile_frame, textvariable=self.profile_var, state="readonly")
         self.profile_combo.pack(side='left', padx=5, fill='x', expand=True)
         self.profile_combo.bind("<<ComboboxSelected>>", self.on_profile_change)
         
-        
+        tk.Button(profile_frame, text="Switch", command=self.switch_profile, bg="#AADDFF").pack(side='left', padx=2)
         tk.Button(profile_frame, text="+ New", command=self.add_profile).pack(side='left', padx=2)
         tk.Button(profile_frame, text="- Del", command=self.delete_profile).pack(side='left', padx=2)
 
         # Profile Details Frame
         details_frame = tk.LabelFrame(root, text="Profile Settings")
-        details_frame.grid(row=1, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
+        details_frame.grid(row=2, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
 
         tk.Label(details_frame, text="Profile Name:").grid(row=0, column=0, sticky='w', padx=5, pady=5)
         self.name_var = tk.StringVar()
@@ -88,18 +87,18 @@ class SettingsDialog:
 
         # Log Frame
         log_frame = tk.LabelFrame(root, text="Activity Log")
-        log_frame.grid(row=2, column=0, columnspan=3, sticky='nsew', padx=10, pady=5)
-        root.grid_rowconfigure(2, weight=1)
+        log_frame.grid(row=3, column=0, columnspan=3, sticky='nsew', padx=10, pady=5)
+        root.grid_rowconfigure(3, weight=1)
         root.grid_columnconfigure(1, weight=1)
 
         self.log_text = scrolledtext.ScrolledText(log_frame, height=10, state='disabled', font=('Consolas', 9))
         self.log_text.pack(fill='both', expand=True, padx=5, pady=5)
 
-        tk.Button(root, text="Save & Close", command=self.save, bg="#DDDDDD", height=1).grid(row=3, column=1, pady=5)
+        tk.Button(root, text="Save & Close", command=self.save, bg="#DDDDDD", height=1).grid(row=4, column=1, pady=5)
         
         # Footer
         footer_frame = tk.Frame(root)
-        footer_frame.grid(row=3, column=0, columnspan=3, pady=20)
+        footer_frame.grid(row=5, column=0, columnspan=3, pady=20)
         tk.Label(footer_frame, text="WinLinuxSync v1.0.0", fg="gray").pack()
         tk.Label(footer_frame, text="Author: DekoHack", fg="gray").pack()
         
@@ -131,6 +130,36 @@ class SettingsDialog:
                 json.dump({"command": "stop"}, f)
         except Exception:
             pass
+
+    def switch_profile(self):
+        """Save current profile to config and trigger reconnect with new profile."""
+        import json
+        # Save current profile fields first
+        if self.current_display_index != -1:
+            self.update_profile_from_ui(self.current_display_index)
+        
+        # Set active index to selected profile
+        active_idx = self.profile_combo.current()
+        if active_idx == -1:
+            return
+        
+        # Save to config file
+        new_config = {
+            "profiles": self.profiles,
+            "active_index": active_idx
+        }
+        config.save_config(new_config)
+        
+        # Trigger reconnect
+        try:
+            with open("control.json", "w") as f:
+                json.dump({"command": "reconnect"}, f)
+        except Exception:
+            pass
+        
+        from tkinter import messagebox
+        messagebox.showinfo("Profile Switched", f"Switched to: {self.profiles[active_idx].get('name')}")
+
 
     def poll_status(self):
         import json

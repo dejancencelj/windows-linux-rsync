@@ -142,4 +142,11 @@ if __name__ == "__main__":
         sys.exit(1)
     
     app = App()
-    app.main()
+    try:
+        app.main()
+    except KeyboardInterrupt:
+        app.shutdown()
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
