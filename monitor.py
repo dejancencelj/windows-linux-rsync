@@ -44,10 +44,9 @@ class GitChecker:
 
 
 class SyncHandler(FileSystemEventHandler):
-    def __init__(self, uploader, local_base_path, blacklist=None):
+    def __init__(self, uploader, local_base_path):
         self.uploader = uploader
         self.local_base_path = local_base_path
-        self.blacklist = blacklist if blacklist else []
         self.paused = False
 
         # Debouncing: track last upload time per file
@@ -74,13 +73,7 @@ class SyncHandler(FileSystemEventHandler):
 
         # Calculate relative path
         relative_path = os.path.relpath(event.src_path, self.local_base_path)
-        
-        # Blacklist check
-        path_components = relative_path.split(os.sep)
-        for skip in self.blacklist:
-            if skip and skip in path_components:
-                return
-        
+
         # Skip temp/swap files
         basename = os.path.basename(event.src_path)
         if basename.startswith('.') or basename.endswith('.tmp') or basename.endswith('~'):
@@ -123,11 +116,11 @@ class SyncHandler(FileSystemEventHandler):
             self.uploader.upload_file(event.dest_path, relative_path)
 
 class Monitor:
-    def __init__(self, local_path, uploader, blacklist=None):
+    def __init__(self, local_path, uploader):
         self.local_path = local_path
         self.uploader = uploader
         self.observer = Observer()
-        self.handler = SyncHandler(uploader, local_path, blacklist)
+        self.handler = SyncHandler(uploader, local_path)
 
     def set_paused(self, paused):
         self.handler.paused = paused

@@ -9,8 +9,7 @@ DEFAULT_PROFILE = {
     "remote_path": "",
     "server_host": "",
     "server_port": 22,
-    "username": "",
-    "blacklist": [".git", "node_modules", "__pycache__"]
+    "username": ""
 }
 
 DEFAULT_CONFIG = {

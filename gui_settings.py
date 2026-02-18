@@ -101,9 +101,6 @@ class SettingsDialog:
         self.user_var = tk.StringVar()
         tk.Entry(details_frame, textvariable=self.user_var, width=40).grid(row=5, column=1, padx=5, pady=5)
 
-        tk.Label(details_frame, text="Blacklist (comma sep):").grid(row=6, column=0, sticky='w', padx=5, pady=5)
-        self.blacklist_var = tk.StringVar()
-        tk.Entry(details_frame, textvariable=self.blacklist_var, width=40).grid(row=6, column=1, padx=5, pady=5)
 
         # Log Frame
         log_frame = tk.LabelFrame(root, text="Activity Log")
@@ -253,9 +250,6 @@ class SettingsDialog:
         self.host_var.set(p.get("server_host", ""))
         self.port_var.set(p.get("server_port", 22))
         self.user_var.set(p.get("username", ""))
-        
-        bl_list = p.get("blacklist", [])
-        self.blacklist_var.set(", ".join(bl_list))
 
     def update_profile_from_ui(self, idx):
         if 0 <= idx < len(self.profiles):
@@ -265,9 +259,7 @@ class SettingsDialog:
                 "remote_path": self.remote_path_var.get(),
                 "server_host": self.host_var.get(),
                 "server_port": self.port_var.get(),
-                "server_port": self.port_var.get(),
-                "username": self.user_var.get(),
-                "blacklist": [x.strip() for x in self.blacklist_var.get().split(',') if x.strip()]
+                "username": self.user_var.get()
             }
 
     def add_profile(self):

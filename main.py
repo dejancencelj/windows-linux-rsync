@@ -85,7 +85,7 @@ class App:
             self.update_status("Connection Failed")
             return
             
-        self.monitor = monitor.Monitor(cfg["local_path"], self.upl, cfg.get("blacklist", []))
+        self.monitor = monitor.Monitor(cfg["local_path"], self.upl)
         self.monitor.start()
 
         self.connected = True

@@ -6,13 +6,7 @@
             "remote_path": "/var/www/avcc/avcc",
             "server_host": "dev5.mmc.lan",
             "server_port": 22,
-            "username": "root",
-            "blacklist": [
-                "vendor",
-                ".git",
-                ".vscode",
-                "nginx_lua"
-            ]
+            "username": "root"
         },
         {
             "name": "Profile 2",
@@ -20,12 +14,7 @@
             "remote_path": "",
             "server_host": "",
             "server_port": 22,
-            "username": "",
-            "blacklist": [
-                ".git",
-                "node_modules",
-                "__pycache__"
-            ]
+            "username": ""
         }
     ],
     "active_index": 0
