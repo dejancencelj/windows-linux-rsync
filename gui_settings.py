@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk, scrolledtext
+import os
 import config
 
 class SettingsDialog:
@@ -38,6 +39,13 @@ class SettingsDialog:
         tk.Label(status_frame, text="Folder Monitor").pack(side='left')
         
         tk.Label(status_frame, text="   |   ").pack(side='left')
+
+        self.git_canvas = tk.Canvas(status_frame, width=20, height=20, highlightthickness=0)
+        self.git_canvas.pack(side='left', padx=5)
+        self.git_circle = self.git_canvas.create_oval(2, 2, 18, 18, fill="red")
+        tk.Label(status_frame, text="Git Repo").pack(side='left')
+
+        tk.Label(status_frame, text="   |   ").pack(side='left')
         tk.Button(status_frame, text="Connect", command=self.manual_connect, bg="#DDFFDD").pack(side='left', padx=5)
         tk.Button(status_frame, text="Disconnect", command=self.manual_disconnect, bg="#FFCCCC").pack(side='left', padx=5)
         
@@ -52,18 +60,30 @@ class SettingsDialog:
         tk.Button(profile_frame, text="+ New", command=self.add_profile).pack(side='left', padx=2)
         tk.Button(profile_frame, text="- Del", command=self.delete_profile).pack(side='left', padx=2)
 
+        # Git-only info banner
+        info_frame = tk.Frame(root, bg="#FFF8DC", relief='groove', bd=1)
+        info_frame.grid(row=2, column=0, columnspan=3, sticky='ew', padx=10, pady=(0, 2))
+        tk.Label(
+            info_frame,
+            text="⚠  This app only syncs files that have changes visible in Git. The local folder must be a Git repository.",
+            bg="#FFF8DC", fg="#7A5C00", font=('Helvetica', 9), wraplength=560, justify='left', pady=4
+        ).pack(fill='x', padx=8)
+
         # Profile Details Frame
         details_frame = tk.LabelFrame(root, text="Profile Settings")
-        details_frame.grid(row=2, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
+        details_frame.grid(row=3, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
 
         tk.Label(details_frame, text="Profile Name:").grid(row=0, column=0, sticky='w', padx=5, pady=5)
         self.name_var = tk.StringVar()
         tk.Entry(details_frame, textvariable=self.name_var, width=40).grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Label(details_frame, text="Local Path:").grid(row=1, column=0, sticky='w', padx=5, pady=5)
+        tk.Label(details_frame, text="Local Path (Git repo):").grid(row=1, column=0, sticky='w', padx=5, pady=5)
         self.local_path_var = tk.StringVar()
+        self.local_path_var.trace_add("write", self._on_local_path_change)
         tk.Entry(details_frame, textvariable=self.local_path_var, width=40).grid(row=1, column=1, padx=5, pady=5)
         tk.Button(details_frame, text="Browse", command=self.browse_folder).grid(row=1, column=2, padx=5, pady=5)
+        self.git_warning_label = tk.Label(details_frame, text="", fg="#CC4400", font=('Helvetica', 8))
+        self.git_warning_label.grid(row=1, column=3, sticky='w', padx=5)
 
         tk.Label(details_frame, text="Remote Path:").grid(row=2, column=0, sticky='w', padx=5, pady=5)
         self.remote_path_var = tk.StringVar()
@@ -87,18 +107,18 @@ class SettingsDialog:
 
         # Log Frame
         log_frame = tk.LabelFrame(root, text="Activity Log")
-        log_frame.grid(row=3, column=0, columnspan=3, sticky='nsew', padx=10, pady=5)
-        root.grid_rowconfigure(3, weight=1)
+        log_frame.grid(row=4, column=0, columnspan=3, sticky='nsew', padx=10, pady=5)
+        root.grid_rowconfigure(4, weight=1)
         root.grid_columnconfigure(1, weight=1)
 
         self.log_text = scrolledtext.ScrolledText(log_frame, height=10, state='disabled', font=('Consolas', 9))
         self.log_text.pack(fill='both', expand=True, padx=5, pady=5)
 
-        tk.Button(root, text="Save & Close", command=self.save, bg="#DDDDDD", height=1).grid(row=4, column=1, pady=5)
-        
+        tk.Button(root, text="Save & Close", command=self.save, bg="#DDDDDD", height=1).grid(row=5, column=1, pady=5)
+
         # Footer
         footer_frame = tk.Frame(root)
-        footer_frame.grid(row=5, column=0, columnspan=3, pady=20)
+        footer_frame.grid(row=6, column=0, columnspan=3, pady=20)
         tk.Label(footer_frame, text="WinLinuxSync v1.0.0", fg="gray").pack()
         tk.Label(footer_frame, text="Author: DekoHack", fg="gray").pack()
         
@@ -228,7 +248,7 @@ class SettingsDialog:
         p = self.profiles[idx]
         
         self.name_var.set(p.get("name", ""))
-        self.local_path_var.set(p.get("local_path", ""))
+        self.local_path_var.set(p.get("local_path", ""))  # triggers _on_local_path_change via trace
         self.remote_path_var.set(p.get("remote_path", ""))
         self.host_var.set(p.get("server_host", ""))
         self.port_var.set(p.get("server_port", 22))
@@ -282,10 +302,28 @@ class SettingsDialog:
             self.profile_combo.current(0)
             self.on_profile_change(None)
 
+    def _on_local_path_change(self, *args):
+        """Update the git indicator and inline warning whenever the local path changes."""
+        path = self.local_path_var.get()
+        is_git = os.path.isdir(os.path.join(path, '.git')) if path else False
+        color = "green" if is_git else "red"
+        self.git_canvas.itemconfig(self.git_circle, fill=color)
+        if path and not is_git:
+            self.git_warning_label.config(text="⚠ Not a Git repo — uploads will be suppressed")
+        else:
+            self.git_warning_label.config(text="")
+
     def browse_folder(self):
         folder = filedialog.askdirectory()
         if folder:
             self.local_path_var.set(folder)
+            if not os.path.isdir(os.path.join(folder, '.git')):
+                messagebox.showwarning(
+                    "Not a Git Repository",
+                    f"The selected folder does not contain a .git directory:\n\n{folder}\n\n"
+                    "WinLinuxSync only uploads files with changes visible in Git.\n"
+                    "No files will be synced until a Git repository is selected."
+                )
 
     def save(self):
         # Update current displayed profile to memory
