@@ -116,8 +116,8 @@ class SettingsDialog:
         # Footer
         footer_frame = tk.Frame(root)
         footer_frame.grid(row=6, column=0, columnspan=3, pady=20)
-        tk.Label(footer_frame, text="WinLinuxSync v1.0.0", fg="gray").pack()
-        tk.Label(footer_frame, text="Author: DekoHack", fg="gray").pack()
+        tk.Label(footer_frame, text="WinLinuxSync v2026.02.18", fg="gray").pack()
+        tk.Label(footer_frame, text="Author: DekoHack (github.com/dejancencelj)  |  Built with Claude Code (Anthropic)", fg="gray").pack()
         
         # Initialize
         self.current_display_index = -1

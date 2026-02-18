@@ -84,3 +84,13 @@ This means:
 - **Nothing is uploading**: Check that the local path is a Git repo (Git Repo indicator should be green) and that the files have uncommitted changes visible in `git status`.
 - **SSH connection fails**: Verify Pageant is running with your key loaded and check firewall settings for the configured port.
 - **Git not found**: Ensure Git is installed and available on your system PATH.
+
+---
+
+## Version & Authors
+
+**Version:** 2026.02.18
+
+**Author:** [DekoHack](https://github.com/dejancencelj)
+
+**Built with:** [Claude Code](https://claude.ai/claude-code) by [Anthropic](https://anthropic.com)
