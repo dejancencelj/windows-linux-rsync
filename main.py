@@ -85,7 +85,8 @@ class App:
             self.update_status("Connection Failed")
             return
             
-        self.monitor = monitor.Monitor(cfg["local_path"], self.upl)
+        sync_branch = cfg.get("sync_branch", "")
+        self.monitor = monitor.Monitor(cfg["local_path"], self.upl, sync_branch)
         self.monitor.start()
 
         self.connected = True

@@ -9,7 +9,8 @@ DEFAULT_PROFILE = {
     "remote_path": "",
     "server_host": "",
     "server_port": 22,
-    "username": ""
+    "username": "",
+    "sync_branch": ""
 }
 
 DEFAULT_CONFIG = {

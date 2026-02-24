@@ -85,21 +85,26 @@ class SettingsDialog:
         self.git_warning_label = tk.Label(details_frame, text="", fg="#CC4400", font=('Helvetica', 8))
         self.git_warning_label.grid(row=1, column=3, sticky='w', padx=5)
 
-        tk.Label(details_frame, text="Remote Path:").grid(row=2, column=0, sticky='w', padx=5, pady=5)
+        tk.Label(details_frame, text="Sync Branch (optional):").grid(row=2, column=0, sticky='w', padx=5, pady=5)
+        self.sync_branch_var = tk.StringVar()
+        tk.Entry(details_frame, textvariable=self.sync_branch_var, width=40).grid(row=2, column=1, padx=5, pady=5)
+        tk.Label(details_frame, text="Leave empty to sync all branches", fg="gray", font=('Helvetica', 8)).grid(row=2, column=2, columnspan=2, sticky='w', padx=5)
+
+        tk.Label(details_frame, text="Remote Path:").grid(row=3, column=0, sticky='w', padx=5, pady=5)
         self.remote_path_var = tk.StringVar()
-        tk.Entry(details_frame, textvariable=self.remote_path_var, width=40).grid(row=2, column=1, padx=5, pady=5)
+        tk.Entry(details_frame, textvariable=self.remote_path_var, width=40).grid(row=3, column=1, padx=5, pady=5)
 
-        tk.Label(details_frame, text="Server Host:").grid(row=3, column=0, sticky='w', padx=5, pady=5)
+        tk.Label(details_frame, text="Server Host:").grid(row=4, column=0, sticky='w', padx=5, pady=5)
         self.host_var = tk.StringVar()
-        tk.Entry(details_frame, textvariable=self.host_var, width=40).grid(row=3, column=1, padx=5, pady=5)
+        tk.Entry(details_frame, textvariable=self.host_var, width=40).grid(row=4, column=1, padx=5, pady=5)
 
-        tk.Label(details_frame, text="Server Port:").grid(row=4, column=0, sticky='w', padx=5, pady=5)
+        tk.Label(details_frame, text="Server Port:").grid(row=5, column=0, sticky='w', padx=5, pady=5)
         self.port_var = tk.IntVar()
-        tk.Entry(details_frame, textvariable=self.port_var, width=10).grid(row=4, column=1, sticky='w', padx=5, pady=5)
+        tk.Entry(details_frame, textvariable=self.port_var, width=10).grid(row=5, column=1, sticky='w', padx=5, pady=5)
 
-        tk.Label(details_frame, text="Username:").grid(row=5, column=0, sticky='w', padx=5, pady=5)
+        tk.Label(details_frame, text="Username:").grid(row=6, column=0, sticky='w', padx=5, pady=5)
         self.user_var = tk.StringVar()
-        tk.Entry(details_frame, textvariable=self.user_var, width=40).grid(row=5, column=1, padx=5, pady=5)
+        tk.Entry(details_frame, textvariable=self.user_var, width=40).grid(row=6, column=1, padx=5, pady=5)
 
 
         # Log Frame
@@ -246,6 +251,7 @@ class SettingsDialog:
         
         self.name_var.set(p.get("name", ""))
         self.local_path_var.set(p.get("local_path", ""))  # triggers _on_local_path_change via trace
+        self.sync_branch_var.set(p.get("sync_branch", ""))
         self.remote_path_var.set(p.get("remote_path", ""))
         self.host_var.set(p.get("server_host", ""))
         self.port_var.set(p.get("server_port", 22))
@@ -256,6 +262,7 @@ class SettingsDialog:
             self.profiles[idx] = {
                 "name": self.name_var.get(),
                 "local_path": self.local_path_var.get(),
+                "sync_branch": self.sync_branch_var.get(),
                 "remote_path": self.remote_path_var.get(),
                 "server_host": self.host_var.get(),
                 "server_port": self.port_var.get(),

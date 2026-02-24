@@ -3,6 +3,7 @@
         {
             "name": "AVCC_APP",
             "local_path": "C:/AI_PROJECTS/avcc",
+            "sync_branch": "new",
             "remote_path": "/var/www/avcc/avcc",
             "server_host": "dev5.mmc.lan",
             "server_port": 22,

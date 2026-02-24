@@ -6,13 +6,46 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 class GitChecker:
-    def __init__(self, local_base_path):
+    def __init__(self, local_base_path, sync_branch=""):
         self.local_base_path = local_base_path
+        self.sync_branch = sync_branch
         self.is_git_repo = os.path.isdir(os.path.join(local_base_path, '.git'))
         if self.is_git_repo:
             print(f"Git repo detected at {local_base_path}. Git-aware filtering enabled.")
+            if self.sync_branch:
+                print(f"Will only sync when branch '{self.sync_branch}' is active.")
         else:
             print(f"No .git directory found at {local_base_path}. All file uploads will be suppressed.")
+
+    def get_current_branch(self) -> str:
+        if not self.is_git_repo:
+            return ""
+        try:
+            # Try git branch --show-current first (git >= 2.22)
+            result = subprocess.run(
+                ['git', 'branch', '--show-current'],
+                cwd=self.local_base_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+            # Fallback: git rev-parse --abbrev-ref HEAD
+            result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                cwd=self.local_base_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+                if branch != 'HEAD':  # HEAD means detached
+                    return branch
+        except Exception:
+            pass
+        return ""
 
     def is_file_changed(self, file_path) -> bool:
         """Returns True if git sees changes for this file (modified, added, or untracked).
@@ -20,18 +53,34 @@ class GitChecker:
         """
         if not self.is_git_repo:
             return False
+
+        if self.sync_branch:
+            current_branch = self.get_current_branch()
+            if current_branch != self.sync_branch:
+                print(f"Branch mismatch: current '{current_branch}' != sync '{self.sync_branch}'")
+                return False
+
+        # Use relative path for git status to avoid Windows path casing issues
+        try:
+            rel_path = os.path.relpath(file_path, self.local_base_path)
+        except ValueError:
+            rel_path = file_path  # fallback for cross-drive paths
+
         try:
             result = subprocess.run(
-                ['git', 'status', '--porcelain', file_path],
+                ['git', 'status', '--porcelain', rel_path],
                 cwd=self.local_base_path,
                 capture_output=True,
                 text=True,
                 timeout=5
             )
             if result.returncode != 0:
-                print(f"Warning: git status returned non-zero for {file_path}")
+                print(f"Warning: git status returned non-zero for {rel_path}")
                 return False
-            return bool(result.stdout.strip())
+            is_changed = bool(result.stdout.strip())
+            if not is_changed:
+                print(f"Git says file is clean (no pending changes): {rel_path}")
+            return is_changed
         except FileNotFoundError:
             print("Warning: git not found on PATH. File upload suppressed.")
             return False
@@ -44,7 +93,7 @@ class GitChecker:
 
 
 class SyncHandler(FileSystemEventHandler):
-    def __init__(self, uploader, local_base_path):
+    def __init__(self, uploader, local_base_path, sync_branch=""):
         self.uploader = uploader
         self.local_base_path = local_base_path
         self.paused = False
@@ -55,7 +104,7 @@ class SyncHandler(FileSystemEventHandler):
         self.lock = threading.Lock()
 
         # Git-aware filtering: check once at startup if this is a git repo
-        self.git_checker = GitChecker(local_base_path)
+        self.git_checker = GitChecker(local_base_path, sync_branch)
 
     def should_upload(self, file_path):
         """Check if enough time has passed since last upload of this file."""
@@ -116,11 +165,11 @@ class SyncHandler(FileSystemEventHandler):
             self.uploader.upload_file(event.dest_path, relative_path)
 
 class Monitor:
-    def __init__(self, local_path, uploader):
+    def __init__(self, local_path, uploader, sync_branch=""):
         self.local_path = local_path
         self.uploader = uploader
         self.observer = Observer()
-        self.handler = SyncHandler(uploader, local_path)
+        self.handler = SyncHandler(uploader, local_path, sync_branch)
 
     def set_paused(self, paused):
         self.handler.paused = paused
