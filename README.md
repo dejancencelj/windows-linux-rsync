@@ -38,6 +38,7 @@ A Python background application that watches a local Git repository on Windows a
    ```
 
 2. **Configure**:
+   - Choose a profile in the startup dialog and click **Start**. You must choose a profile each time the app starts; it does not connect before you confirm.
    - The Settings window opens automatically.
    - Set **Local Path (Git repo)** to your local Git repository folder.
    - Set **Remote Path** to the destination directory on the server.

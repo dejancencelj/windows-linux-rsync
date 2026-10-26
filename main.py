@@ -2,15 +2,17 @@ import threading
 import sys
 import os
 import json
+import traceback
 
 import config
 import monitor
 import uploader
 
-def update_status_file(connected=False, monitoring=False, error=None):
+def update_status_file(connected=False, monitoring=False, error=None, connecting=False):
     status = {
         "connected": connected,
         "monitoring": monitoring,
+        "connecting": connecting,
         "error": error,
         "pid": os.getpid()
     }
@@ -26,6 +28,7 @@ class App:
         self.upl = None
         self.config_data = config.load_config()
         self.connected = False
+        self.connecting = False
         self.running = True
         # Init status as disconnected
         self.update_status()
@@ -35,12 +38,9 @@ class App:
         sys.stdout = self.logfile
         sys.stderr = self.logfile
 
-        # Start command listener
-        threading.Thread(target=self.command_loop, daemon=True).start()
-
     def update_status(self, error=None):
         monitoring = (self.monitor is not None)
-        update_status_file(self.connected, monitoring, error)
+        update_status_file(self.connected, monitoring, error, self.connecting)
 
     def command_loop(self):
         import time
@@ -58,13 +58,12 @@ class App:
                         print("Stop triggered via command.")
                         self.stop_sync()
                     
-                    self.update_status()
             except Exception:
-                pass
+                traceback.print_exc()
             time.sleep(0.5)
 
     def start_sync(self):
-        if self.monitor:
+        if self.monitor or self.upl:
             self.stop_sync()
         
         # Reload config in case it changed
@@ -77,32 +76,56 @@ class App:
             return
 
         print(f"Starting sync service for profile: {cfg.get('name')}...")
-        self.upl = uploader.Uploader(cfg["server_host"], cfg["server_port"], cfg["username"], cfg["remote_path"])
-        
-        # Test connection first
-        if not self.upl.connect():
-            print("Could not connect on startup")
-            self.update_status("Connection Failed")
+        if not os.path.isdir(cfg["local_path"]):
+            error = f"Local folder does not exist: {cfg['local_path']}"
+            print(error)
+            self.update_status(error)
             return
-            
-        sync_branch = cfg.get("sync_branch", "")
-        self.monitor = monitor.Monitor(cfg["local_path"], self.upl, sync_branch)
-        self.monitor.start()
+
+        try:
+            self.connecting = True
+            self.update_status()
+            self.upl = uploader.Uploader(cfg["server_host"], cfg["server_port"], cfg["username"], cfg["remote_path"])
+
+            # Test connection first
+            if not self.upl.connect():
+                self.stop_sync()
+                self.update_status("Connection Failed")
+                return
+
+            sync_branch = cfg.get("sync_branch", "")
+            self.monitor = monitor.Monitor(cfg["local_path"], self.upl, sync_branch)
+            self.monitor.start()
+        except Exception as exc:
+            traceback.print_exc()
+            try:
+                self.stop_sync()
+            except Exception:
+                traceback.print_exc()
+            self.update_status(f"Could not start sync: {exc}")
+            return
 
         self.connected = True
+        self.connecting = False
         self.update_status()
         print(f"Connected to {cfg['server_host']}, monitoring {cfg['local_path']}")
 
     def stop_sync(self):
         if self.monitor:
             print("Stopping sync service...")
-            self.monitor.stop()
-            self.monitor = None
+            try:
+                self.monitor.stop()
+            except RuntimeError:
+                # A watcher that failed to start has no running thread to join.
+                traceback.print_exc()
+            finally:
+                self.monitor = None
         if self.upl:
             self.upl.close()
             self.upl = None
             
         self.connected = False
+        self.connecting = False
         self.update_status("Stopped")
 
     def shutdown(self):
@@ -112,17 +135,23 @@ class App:
 
     def main(self):
         import gui_settings
-        
-        # Auto-start sync if configured
-        active_p = config.get_active_profile(self.config_data)
-        if active_p and active_p.get("server_host"):
-            self.start_sync()
 
-        # Run settings as the main window (blocking)
-        gui_settings.open_settings(on_save_callback=lambda cfg: self.start_sync())
-        
-        # When settings window is closed, shutdown
-        self.shutdown()
+        try:
+            selected_index = gui_settings.choose_profile(self.config_data)
+            if selected_index is None:
+                return
+
+            self.config_data["active_index"] = selected_index
+            config.save_config(self.config_data)
+            # A leftover command from a previous session must not connect on startup.
+            if os.path.exists("control.json"):
+                os.remove("control.json")
+
+            # Commands are accepted only after a profile has been chosen.
+            threading.Thread(target=self.command_loop, daemon=True).start()
+            gui_settings.open_settings()
+        finally:
+            self.shutdown()
 
 if __name__ == "__main__":
     import msvcrt

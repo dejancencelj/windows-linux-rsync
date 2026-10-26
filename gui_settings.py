@@ -3,6 +3,57 @@ from tkinter import filedialog, messagebox, ttk, scrolledtext
 import os
 import config
 
+
+class ProfileChooser:
+    def __init__(self, root, profiles):
+        self.root = root
+        self.profiles = profiles
+        self.selected_index = None
+        root.title("Choose Profile - WinLinuxSync")
+        root.resizable(False, False)
+
+        frame = ttk.Frame(root, padding=20)
+        frame.pack(fill='both', expand=True)
+        ttk.Label(frame, text="Choose a profile for this session.").pack(anchor='w', pady=(0, 10))
+        self.profile_combo = ttk.Combobox(
+            frame, state="readonly", width=50,
+            values=[profile.get("name", "Unnamed") for profile in profiles]
+        )
+        self.profile_combo.pack(fill='x')
+        self.profile_combo.bind("<<ComboboxSelected>>", self.on_profile_change)
+        self.folder_label = ttk.Label(frame, text="", wraplength=400)
+        self.folder_label.pack(anchor='w', pady=10)
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill='x')
+        self.start_button = ttk.Button(buttons, text="Start", command=self.confirm, state='disabled')
+        self.start_button.pack(side='right')
+        ttk.Button(buttons, text="Cancel", command=root.destroy).pack(side='right', padx=(0, 8))
+        root.bind('<Return>', lambda event: self.confirm())
+        root.bind('<Escape>', lambda event: root.destroy())
+        self.profile_combo.focus_set()
+
+    def on_profile_change(self, event=None):
+        index = self.profile_combo.current()
+        if index != -1:
+            self.folder_label.config(text=self.profiles[index].get("local_path", ""))
+            self.start_button.config(state='normal')
+
+    def confirm(self):
+        index = self.profile_combo.current()
+        if index == -1:
+            return
+        self.selected_index = index
+        self.root.destroy()
+
+
+def choose_profile(config_data):
+    root = tk.Tk()
+    chooser = ProfileChooser(root, config_data.get("profiles", []))
+    root.mainloop()
+    return chooser.selected_index
+
+
 class SettingsDialog:
     def __init__(self, root, on_save_callback):
         self.root = root
@@ -48,7 +99,7 @@ class SettingsDialog:
         tk.Label(status_frame, text="   |   ").pack(side='left')
         tk.Button(status_frame, text="Connect", command=self.manual_connect, bg="#DDFFDD").pack(side='left', padx=5)
         tk.Button(status_frame, text="Disconnect", command=self.manual_disconnect, bg="#FFCCCC").pack(side='left', padx=5)
-        
+
         tk.Label(profile_frame, text="Active Profile:").pack(side='left')
         
         self.profile_var = tk.StringVar()
@@ -68,6 +119,11 @@ class SettingsDialog:
             text="⚠  This app only syncs files that have changes visible in Git. The local folder must be a Git repository.",
             bg="#FFF8DC", fg="#7A5C00", font=('Helvetica', 9), wraplength=560, justify='left', pady=4
         ).pack(fill='x', padx=8)
+        self.status_error_label = tk.Label(
+            info_frame, text="", bg="#FFF8DC", fg="#CC4400",
+            wraplength=560, justify='left'
+        )
+        self.status_error_label.pack(fill='x', padx=8, pady=(0, 4))
 
         # Profile Details Frame
         details_frame = tk.LabelFrame(root, text="Profile Settings")
@@ -197,6 +253,7 @@ class SettingsDialog:
                 
                 self.ssh_canvas.itemconfig(self.ssh_circle, fill=ssh_color)
                 self.mon_canvas.itemconfig(self.mon_circle, fill=mon_color)
+                self.status_error_label.config(text=status.get("error") or "")
                     
         except Exception:
             pass

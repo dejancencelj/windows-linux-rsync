@@ -10,12 +10,49 @@
             "username": "root"
         },
         {
-            "name": "Profile 2",
-            "local_path": "",
-            "remote_path": "",
-            "server_host": "",
+            "name": "API",
+            "local_path": "C:/AI_PROJECTS/mmc-api",
+            "sync_branch": "master",
+            "remote_path": "/var/www/api/api",
+            "server_host": "dev3.mmc.lan",
             "server_port": 22,
-            "username": ""
+            "username": "root"
+        },
+        {
+            "name": "RTV365",
+            "local_path": "C:/AI_PROJECTS/app-rtv4",
+            "sync_branch": "master",
+            "remote_path": "/var/www/rtv4",
+            "server_host": "dev3.mmc.lan",
+            "server_port": 22,
+            "username": "root"
+        },
+        {
+            "name": "module-user",
+            "local_path": "C:/AI_PROJECTS/monocms-modules-user",
+            "sync_branch": "release-2.0",
+            "remote_path": "/var/www/monocms/monocms/public_html/modules/user",
+            "server_host": "dev3.mmc.lan",
+            "server_port": 22,
+            "username": "root"
+        },
+        {
+            "name": "modules-moderator",
+            "local_path": "C:\\AI_PROJECTS\\monocms-modules-moderator",
+            "sync_branch": "",
+            "remote_path": "/var/www/newsadmin/newsadmin/public_html/modules/moderator",
+            "server_host": "dev3.mmc.lan",
+            "server_port": 22,
+            "username": "root"
+        },
+        {
+            "name": "monocms-modules-volitve",
+            "local_path": "C:/AI_PROJECTS/monocms-modules-elections",
+            "sync_branch": "",
+            "remote_path": "/var/www/newsadmin/newsadmin/public_html/modules/elections",
+            "server_host": "dev3.mmc.lan",
+            "server_port": 22,
+            "username": "root"
         }
     ],
     "active_index": 0

@@ -123,6 +123,10 @@ class SyncHandler(FileSystemEventHandler):
         # Calculate relative path
         relative_path = os.path.relpath(event.src_path, self.local_base_path)
 
+        # Skip anything inside the .git directory
+        if relative_path.startswith('.git' + os.sep) or relative_path == '.git':
+            return
+
         # Skip temp/swap files
         basename = os.path.basename(event.src_path)
         if basename.startswith('.') or basename.endswith('.tmp') or basename.endswith('~'):
@@ -148,7 +152,11 @@ class SyncHandler(FileSystemEventHandler):
     def on_moved(self, event):
         if not event.is_directory:
             relative_path = os.path.relpath(event.dest_path, self.local_base_path)
-            
+
+            # Skip anything inside the .git directory
+            if relative_path.startswith('.git' + os.sep) or relative_path == '.git':
+                return
+
             # Skip temp files
             basename = os.path.basename(event.dest_path)
             if basename.startswith('.') or basename.endswith('.tmp') or basename.endswith('~'):
