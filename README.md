@@ -38,19 +38,20 @@ A Python background application that watches a local Git repository on Windows a
    ```
 
 2. **Configure**:
-   - Choose a profile in the startup dialog and click **Start**. You must choose a profile each time the app starts; it does not connect before you confirm.
-   - The Settings window opens automatically.
-   - Set **Local Path (Git repo)** to your local Git repository folder.
-   - Set **Remote Path** to the destination directory on the server.
-   - Enter **Server Host**, **Port**, and **Username**.
-   - Click **Save & Close**.
+   - Choose a profile in the startup dialog and click **Open workspace**. You must choose a profile each time the app starts.
+   - The workspace window opens disconnected. Choosing a profile never starts syncing.
+   - Set **Local folder** to your local Git repository folder.
+   - Set **Remote folder** to the destination directory on the server.
+   - Enter **Server host**, **SSH port**, and **Username**.
+   - Click **Save profile**. Saving keeps the window open and does not connect.
 
 3. **Connect**:
-   - Click **Connect** in the System Status bar to start syncing.
+   - Click **Connect** to save the displayed profile settings and start syncing.
+   - Switching profiles stops the current session. Click **Connect** again when ready.
    - The status indicators show:
-     - 🟢/🔴 **SSH Connection** — whether the SFTP connection is active
-     - 🟢/🔴 **Folder Monitor** — whether watchdog is actively monitoring
-     - 🟢/🔴 **Git Repo** — whether the local path is a valid Git repository
+     - **SSH** — whether the SFTP connection is active
+     - **Watcher** — whether watchdog is actively monitoring
+     - **Git repository** — the validation message under the local folder field
 
 4. **Sync**:
    - Edit files in your Git repo on Windows.

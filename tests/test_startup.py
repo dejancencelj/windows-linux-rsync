@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import tkinter as tk
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, mock_open, patch
 
 import main
 import gui_settings
@@ -18,6 +18,7 @@ class StartupTests(unittest.TestCase):
         self.app.monitor = None
         self.app.upl = None
         self.app.connected = False
+        self.app.connecting = False
         self.app.update_status = Mock()
         self.app.shutdown = Mock()
         self.profile = {
@@ -41,7 +42,7 @@ class StartupTests(unittest.TestCase):
         self.uploader = self.mocks[1].return_value
         self.monitor = self.mocks[2].return_value
 
-    def test_profile_is_chosen_before_saving_or_connecting(self):
+    def test_profile_selection_opens_settings_without_connecting(self):
         self.app.config_data['profiles'].append(dict(
             self.profile, name='Other profile', server_host='selected.invalid'
         ))
@@ -55,7 +56,7 @@ class StartupTests(unittest.TestCase):
             self.app.main()
         self.assertEqual(self.app.config_data['active_index'], 1)
         self.save_config.assert_called_once_with(self.app.config_data)
-        self.mocks[1].assert_called_once_with('selected.invalid', 22, 'test', '/test')
+        self.mocks[1].assert_not_called()
         self.command_thread.return_value.start.assert_called_once()
         self.app.shutdown.assert_called_once()
 
@@ -69,12 +70,10 @@ class StartupTests(unittest.TestCase):
         open_settings.assert_not_called()
         self.app.shutdown.assert_called_once()
 
-    def test_missing_folder_still_opens_settings_without_connecting(self):
+    def test_missing_folder_is_reported_when_connect_is_requested(self):
         self.mocks[3].return_value = False
-        with patch('gui_settings.open_settings') as open_settings:
-            self.app.main()
+        self.app.start_sync()
         self.mocks[1].assert_not_called()
-        open_settings.assert_called_once()
         self.app.update_status.assert_called_with(
             'Local folder does not exist: missing-folder'
         )
@@ -82,9 +81,7 @@ class StartupTests(unittest.TestCase):
     def test_watcher_failure_is_reported_and_resources_are_closed(self):
         self.monitor.start.side_effect = FileNotFoundError('folder disappeared')
         self.monitor.stop.side_effect = RuntimeError('cannot join thread before it is started')
-        with patch('gui_settings.open_settings') as open_settings:
-            self.app.main()
-        open_settings.assert_called_once()
+        self.app.start_sync()
         self.uploader.close.assert_called_once()
         self.assertIsNone(self.app.monitor)
         self.assertIsNone(self.app.upl)
@@ -93,11 +90,9 @@ class StartupTests(unittest.TestCase):
             'Could not start sync: folder disappeared'
         )
 
-    def test_connection_failure_closes_client_and_opens_settings(self):
+    def test_connection_failure_closes_client_and_reports_error(self):
         self.uploader.connect.return_value = False
-        with patch('gui_settings.open_settings') as open_settings:
-            self.app.main()
-        open_settings.assert_called_once()
+        self.app.start_sync()
         self.uploader.close.assert_called_once()
         self.mocks[2].assert_not_called()
         self.app.update_status.assert_called_with('Connection Failed')
@@ -108,6 +103,27 @@ class StartupTests(unittest.TestCase):
         self.assertTrue(self.app.connected)
         self.assertIs(self.app.monitor, self.monitor)
         self.app.update_status.assert_called_with()
+
+    def test_old_connection_command_is_discarded_at_startup(self):
+        with patch('main.os.path.exists', return_value=True), patch('main.os.remove') as remove:
+            with patch('gui_settings.open_settings') as open_settings:
+                self.app.main()
+        remove.assert_called_once_with('control.json')
+        open_settings.assert_called_once_with()
+        self.mocks[1].assert_not_called()
+
+    def test_command_listener_keeps_connection_error_visible(self):
+        self.uploader.connect.return_value = False
+        self.app.running = True
+        self.app.update_status = main.App.update_status.__get__(self.app)
+        def finish_iteration(_delay):
+            self.app.running = False
+        with patch('main.os.path.exists', return_value=True), patch('main.os.remove'):
+            with patch('builtins.open', mock_open(read_data='{"command": "reconnect"}')):
+                with patch('time.sleep', side_effect=finish_iteration), patch('main.update_status_file') as status:
+                    self.app.command_loop()
+        self.assertEqual(status.call_args.args[2], 'Connection Failed')
+        self.assertFalse(status.call_args.args[3])
 
 
 class ProfileChooserTests(unittest.TestCase):
